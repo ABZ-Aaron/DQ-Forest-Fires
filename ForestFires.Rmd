@@ -7,6 +7,308 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
 ```
 
-## R Markdown
+
+## Introduction
+
+This project is a chance for me to develop my basic R skills, and practice implementing `Ggplot` graphs.
+
+The project itself focses on Forest Fire data. Forest fires can create ecological problems and endanger human lives and property. Understanding when they occur and what causes them is important for managing them. The data I'll be working with in this project is associated with a scientific research paper on predicting the occurrence of forest fires in Portugal using modeling techniques.
+
+**Variables**
+
+* X: X-axis spatial coordinate within the Montesinho park map: 1 to 9
+* Y: Y-axis spatial coordinate within the Montesinho park map: 2 to 9
+* month: Month of the year: 'jan' to 'dec'
+* day: Day of the week: 'mon' to 'sun'
+* FFMC: Fine Fuel Moisture Code index from the FWI system: 18.7 to 96.20
+* DMC: Duff Moisture Code index from the FWI system: 1.1 to 291.3
+* DC: Drought Code index from the FWI system: 7.9 to 860.6
+* ISI: Initial Spread Index from the FWI system: 0.0 to 56.10
+* temp: Temperature in Celsius degrees: 2.2 to 33.30
+* RH: Relative humidity in percentage: 15.0 to 100
+* wind: Wind speed in km/h: 0.40 to 9.40
+* rain: Outside rain in mm/m2 : 0.0 to 6.4
+* area: The burned area of the forest (in ha): 0.00 to 1090.84
+
+```{r}
+# Load in data 
+fires <- read_csv("forestfires.csv", col_types = cols())
+```
+
+```{r}
+# Explore data
+glimpse(fires)
+```
+```{r}
+# Summarising data
+summary(fires)
+```
+```{r}
+# Check for missing values
+any(is.na(fires))
+```
+```{r}
+# Explore actual rows
+head(fires)
+tail(fires)
+```
+```{r}
+# Check unique values of character columns
+unique(c(fires$month, fires$day))
+```
+ 
+
+```{r}
+# We can also get the min and max of some of the numerical columns
+sapply(fires[,5:13], range)
+```
+The data we have appears to be clean and consistent, with each row represents a forest fire.
+
+Regarding the `days` and `month` attributes, we want to conver these to categories.
+
+```{r}
+# Unique days
+fires %>% pull(day) %>% unique
+```
+```{r}
+# Convert days to categories
+fires$day <- factor(fires$day, levels = c("mon", "tue", "wed", "thu", "fri", "sat", "sun"))
+```
+
+```{r}
+# Unique months
+fires %>% pull(month) %>% unique
+```
+```{r}
+# Convert months to categories
+fires$month <- factor(fires$month, levels = c("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+```
+
+```{r}
+# Rechecking the data
+glimpse(fires)
+```
+### When do most forest fires occur.
+
+For this, we have the `month` and `day` columns to work with.
+
+```{r}
+# Group our data by month
+month_group <- fires %>%
+  group_by(month) %>%
+  summarise(total = n())
+
+month_group
+```
+
+
+```{r}
+# Creat bar chart
+month_group %>%
+  ggplot(aes(x = month, y = total))+
+  geom_col(fill = "navy") + 
+  theme(panel.background = element_rect(fill = "white")) + 
+  labs(
+    title = "Forest Fires by Month",
+    x = "Month",
+    y = "Total Fires"
+  )
+```
+We can see that from the data, forest fires peak during August and September - with around 150+ fires globally during these months. Most other months have a relatively small number of forest fires, with the exception of March, which has over 50.
+
+The months with the lowest amount of forest fires are January, May, and November.
+
+Let's now look at days.
+
+```{r}
+# Group by day
+day_group <- fires %>%
+  group_by(day) %>%
+  summarise(total = n())
+
+day_group
+```
+
+```{r}
+# Create bar chart
+day_group %>% 
+  ggplot(aes(x = day, y = total)) + 
+  geom_col(fill = "navy") + 
+  theme(panel.background = element_rect(fill = "white")) + 
+  labs(
+    title = "Forest Fires by Day",
+    x = "Month",
+    y = "Total Forest Fires"
+  )
+```
+Not a huge amount of variation between days, however the weekend days, friday, saturday and sunday do appear to be the highest.
+
+Now, let's look at the relationship between `month` and the following columns:
+
+* `FFMC`
+* `DMC`
+* `DC`
+* `ISI`
+* `temp`
+* `RH`
+* `wind`
+* `rain`
+
+For this, we might want to use boxplots.
+
+There's a number of ways to do this. We could plot seperately, or as one. Let's explore some different ways.
+
+```{r}
+# Plotting individually
+fires %>%
+  ggplot(aes(x = month, y = FFMC)) + 
+  geom_boxplot()
+```
+This may be a bit inefficient. Let's try plot them all together using `pivot_longer` and `facet_wrap`
+
+```{r}
+# Transform the tibble
+fires_pivot <- fires %>%
+  pivot_longer(
+    cols = c("FFMC", "DMC", "DC", "ISI", "temp", "RH", "wind", "rain"),
+    names_to = "columns",
+    values_to = "values"
+  )
+    
+fires_pivot
+```
+
+Here we've transformed our tibble, essentialy adding a number of columns into a single row (which lengthens the tibble).
+
+Next, we will create a plot using `facet_wrap` along with an optional argument `scale` to create multiple graphs. We'll also set the width and height.
+
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+# Create Plots
+fires_pivot %>%
+  ggplot(aes(x = month, y = values)) + 
+  geom_boxplot() + 
+  facet_wrap("columns", scale = "free_y") + 
+  labs(
+    title = "Various Attributes by Month",
+    x = "Month",
+    y = "Values"
+  ) + 
+  theme(
+    panel.background = element_rect(fill = "white")
+  )
+```
+
+If we only look at August and September, the months with the greatest number of forest fires, we see that some of these variables stand out. For example, `DMC`, `temp`, and `DC`.
+
+
+* DMC: Duff Moisture Code index from the FWI system: 1.1 to 291.3
+* DC: Drought Code index from the FWI system: 7.9 to 860.6
+* temp: Temperature in Celsius degrees: 2.2 to 33.30
+
+From a quick google search, we find this,
+
+**Duff Moisture Code**
+
+The Duff Moisture Code (DMC) is a numeric rating of the average moisture content of loosely compacted organic layers of moderate depth. This code gives an indication of fuel consumption in moderate duff layers and medium-size woody material.
+
+**Drought Code**
+
+The Drought Code (DC) is a numeric rating of the average moisture content of deep, compact organic layers. This code is a useful indicator of seasonal drought effects on forest fuels and the amount of smoldering in deep duff layers and large logs.
+
+Higher numbers here relate to less moisture. 
+
+For the temperature attribute, it makes sense that the higher the temperature, the greater the chance of a forest fire.
+
+Let's now just quickly re-run the anlysis above on days, rather than months.
+
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+fires_pivot %>%
+  ggplot(aes(x = day, y = values)) + 
+  geom_boxplot() + 
+  facet_wrap("columns", scale = "free_y") + 
+  theme(
+    panel.background = element_rect("white")
+  ) + 
+  labs(
+    title = "Various Attributes by Day",
+    x = "Day of the Week",
+    y = "Values"
+  )
+```
+
+It's harder to discern much from this.
+
+Let's now run a similar analysis, but this time looking at fire *intensity* rather than fire *frequency*. As we don't have a variable to measure intensity, we'll instead use the variable `area` which descirbes the area of forest burned. Higher area we can say was a more intense fire.
+
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+fires_pivot %>%
+  ggplot(aes(x = values, y = area)) + 
+  geom_point() + 
+  facet_wrap("columns", scale = "free_x") + 
+  labs(
+    title = "Area of Forest burned by various attributes",
+    x = "Values",
+    y = "Area of Forest Burned"
+  ) 
+```
+
+We can some some relationships here. However, we can also note some outliers in the data, making many points cluster along the bottom of the graph.
+
+```{r}
+fires %>%
+  ggplot(aes(x = area)) +
+  geom_histogram()
+```
+
+Looking at the histogram for area, we can see some outliers.
+
+Let's try some filtering
+
+```{r}
+# Where area is greater than zero
+area1 <- fires_pivot %>%
+  filter(
+   area != 0 
+  )
+
+# Where area is less than 300
+area2 <- fires_pivot %>%
+  filter(
+    area < 300
+  )
+
+# Where area is between 50 and 300
+area3 <- fires_pivot %>% 
+  filter(
+    area > 50 & area < 300
+  )
+```
+
+Let's experiment with the above
+
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+# Non Zero value of area
+area1 %>%
+  ggplot(aes(x = values, y = area)) +
+  geom_point() + 
+  facet_wrap("columns", scale = "free_x")
+```
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+# Area less than 300
+area2 %>%
+  ggplot(aes(x = values, y = area)) +
+  geom_point() + 
+  facet_wrap("columns", scale = "free_x")
+```
+
+```{r fig.width=10, fig.height=9, fig.asp = 0.618, out.width = "70%", fig.align = "center"}
+# Area between 50 and 300
+area3 %>%
+  ggplot(aes(x = values, y = area)) +
+  geom_point() + 
+  facet_wrap("columns", scale = "free_x")
+```
